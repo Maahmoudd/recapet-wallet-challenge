@@ -7,7 +7,6 @@ use App\Repositories\Contract\IActivityLogRepository;
 use App\Repositories\Contract\IUserRepository;
 use App\Repositories\Contract\IWalletRepository;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
 
 class RegisterUserAction
 {
@@ -24,22 +23,17 @@ class RegisterUserAction
         ], request());
 
         return DB::transaction(function () use ($data) {
-            $user = $this->userRepository->create([
-                'email' => $data['email'],
-                'password' => Hash::make($data['password']),
-                'email_verified_at' => now(),
-            ]);
+            $user = $this->userRepository->create($data);
 
             $wallet = $this->walletRepository->create([
                 'user_id' => $user->id,
-                'balance' => '0.00',
-                'status' => 'active',
             ]);
 
             $token = $user->createToken('auth-token')->plainTextToken;
 
             $this->activityLogRepository->log('user_registration_success', $user, [
                 'metadata' => [
+                    'name' => $user->name,
                     'email' => $user->email,
                     'wallet_id' => $wallet->id
                 ]
