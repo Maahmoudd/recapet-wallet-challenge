@@ -13,41 +13,35 @@ class TransactionResource extends JsonResource
             'id' => $this->id,
             'idempotency_key' => $this->idempotency_key,
             'type' => $this->type,
-            'amount' => $this->amount,
-            'fee_amount' => $this->fee_amount,
-            'total_amount' => $this->total_amount,
-            'status' => $this->status, // Requirement #4: Record status updates
-            'status_description' => $this->getStatusDescription(),
-            'description' => $this->getTransactionDescription(),
-            'metadata' => $this->metadata,
+            'direction' => $this->direction ?? null,
+            'amount' => number_format($this->amount, 2, '.', ''),
+            'fee_amount' => number_format($this->fee_amount, 2, '.', ''),
+            'display_amount' => isset($this->display_amount) ? number_format($this->display_amount, 2, '.', '') : null,
+            'status' => $this->status,
+            'description' => $this->computed_description ?? null,
+            'counterparty' => $this->counterparty ?? null,
             'created_at' => $this->created_at?->toISOString(),
             'updated_at' => $this->updated_at?->toISOString(),
-            'from_wallet' => new WalletResource($this->whenLoaded('fromWallet')),
-            'to_wallet' => new WalletResource($this->whenLoaded('toWallet')),
-            'sender' => new UserResource($this->whenLoaded('fromWallet.user')),
-            'recipient' => new UserResource($this->whenLoaded('toWallet.user')),
+            'metadata' => $this->metadata ?? null,
+
+            'from_wallet' => $this->whenLoaded('fromWallet', function () {
+                return [
+                    'id' => $this->fromWallet->id,
+                    'user' => $this->whenLoaded('fromWallet.user', [
+                        'id' => $this->fromWallet->user->id,
+                        'email' => $this->fromWallet->user->email,
+                    ])
+                ];
+            }),
+            'to_wallet' => $this->whenLoaded('toWallet', function () {
+                return [
+                    'id' => $this->toWallet->id,
+                    'user' => $this->whenLoaded('toWallet.user', [
+                        'id' => $this->toWallet->user->id,
+                        'email' => $this->toWallet->user->email,
+                    ])
+                ];
+            }),
         ];
-    }
-
-    private function getTransactionDescription(): string
-    {
-        return match ($this->type) {
-            'deposit' => 'Deposit to wallet',
-            'withdrawal' => 'Withdrawal from wallet',
-            'transfer' => $this->fromWallet && $this->toWallet
-                ? "Transfer from {$this->fromWallet->user->email} to {$this->toWallet->user->email}"
-                : 'Transfer between wallets',
-            default => ucfirst($this->type),
-        };
-    }
-
-    private function getStatusDescription(): string
-    {
-        return match ($this->status) {
-            'pending' => 'Transaction is being processed',
-            'completed' => 'Transaction completed successfully',
-            'failed' => 'Transaction failed',
-            default => ucfirst($this->status),
-        };
     }
 }

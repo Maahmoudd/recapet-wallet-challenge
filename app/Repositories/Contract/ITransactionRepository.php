@@ -13,4 +13,8 @@ interface ITransactionRepository extends IBaseRepository
     public function getPendingTransactions(): Collection;
     public function updateStatus(Transaction $transaction, string $status): bool;
     public function getByTypeAndStatus(string $type, string $status): Collection;
+
+    // New methods for enhanced transaction history
+    public function getWalletTransactionsPaginated(int $walletId, array $filters = []): \Illuminate\Contracts\Pagination\LengthAwarePaginator;
+    public function getTransactionSummary(int $walletId, array $filters = []): array;
 }

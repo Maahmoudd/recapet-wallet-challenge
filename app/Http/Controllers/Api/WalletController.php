@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\Api;
 
 use App\Actions\Wallet\DepositAction;
+use App\Actions\Wallet\GetTransactionHistoryAction;
 use App\Actions\Wallet\TransferAction;
 use App\Actions\Wallet\WithdrawAction;
 use App\Http\Requests\Wallet\DepositRequest;
+use App\Http\Requests\Wallet\TransactionHistoryRequest;
 use App\Http\Requests\Wallet\TransferRequest;
 use App\Http\Requests\Wallet\WithdrawRequest;
 use App\Http\Resources\TransactionResource;
@@ -60,5 +62,25 @@ class WalletController extends BaseApiController
             ],
             'status' => 'completed',
         ], 'Transfer completed successfully');
+    }
+
+    public function getTransactionHistory(TransactionHistoryRequest $request, GetTransactionHistoryAction $action): JsonResponse
+    {
+        $user = Auth::user();
+        $result = $action->execute($user, $request->validated());
+
+        return $this->successResponse([
+            'transactions' => TransactionResource::collection($result['transactions']),
+            'pagination' => [
+                'current_page' => $result['transactions']->currentPage(),
+                'last_page' => $result['transactions']->lastPage(),
+                'per_page' => $result['transactions']->perPage(),
+                'total' => $result['transactions']->total(),
+                'from' => $result['transactions']->firstItem(),
+                'to' => $result['transactions']->lastItem(),
+            ],
+            'summary' => $result['summary'],
+            'current_balance' => number_format($result['wallet_balance'], 2, '.', ''),
+        ], 'Transaction history retrieved successfully');
     }
 }
