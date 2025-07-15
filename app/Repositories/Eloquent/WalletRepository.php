@@ -12,30 +12,25 @@ class WalletRepository extends BaseRepository implements IWalletRepository
         return $this->findFirstBy('user_id', $userId);
     }
 
-    /**
-     * Find wallet by user ID or fail.
-     */
+    public function findByUserIdForUpdate(int $userId): ?Wallet
+    {
+        return Wallet::where('user_id', $userId)->lockForUpdate()->first();
+    }
+
     public function findByUserIdOrFail(int $userId): Wallet
     {
-        return $this->model->where('user_id', $userId)->firstOrFail();
+        return Wallet::where('user_id', $userId)->firstOrFail();
     }
 
-    /**
-     * Update wallet balance with locking.
-     */
     public function updateBalanceWithLock(int $walletId, string $newBalance): bool
     {
-        return $this->model
-            ->where('id', $walletId)
+        return Wallet::where('id', $walletId)
             ->lockForUpdate()
-            ->update(['balance' => $newBalance, 'updated_at' => now()]);
+            ->update(['balance' => $newBalance]);
     }
 
-    /**
-     * Get wallet with lock for update.
-     */
     public function getWithLock(int $walletId): Wallet
     {
-        return $this->model->lockForUpdate()->findOrFail($walletId);
+        return Wallet::lockForUpdate()->findOrFail($walletId);
     }
 }

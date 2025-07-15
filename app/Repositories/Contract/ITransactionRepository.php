@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Collection;
 
 interface ITransactionRepository extends IBaseRepository
 {
-    public function findByIdempotencyKey(string $key): ?Transaction;
+    public function findByIdempotencyKey(string $idempotencyKey): ?Transaction;
     public function existsByIdempotencyKey(string $key): bool;
     public function getTransactionsForWallet(int $walletId, array $filters = []): \Illuminate\Contracts\Pagination\LengthAwarePaginator;
     public function getPendingTransactions(): Collection;

@@ -3,8 +3,10 @@
 namespace App\Http\Controllers\Api;
 
 use App\Actions\Wallet\DepositAction;
+use App\Actions\Wallet\TransferAction;
 use App\Actions\Wallet\WithdrawAction;
 use App\Http\Requests\Wallet\DepositRequest;
+use App\Http\Requests\Wallet\TransferRequest;
 use App\Http\Requests\Wallet\WithdrawRequest;
 use App\Http\Resources\TransactionResource;
 use Illuminate\Http\JsonResponse;
@@ -37,5 +39,26 @@ class WalletController extends BaseApiController
             'withdrawn_amount' => $result['withdrawn_amount'],
             'status' => 'completed',
         ], 'Withdrawal completed successfully');
+    }
+
+    public function transfer(TransferRequest $request, TransferAction $action): JsonResponse
+    {
+        $user = Auth::user();
+        $result = $action->execute($user, $request->validated());
+
+        return $this->successResponse([
+            'transaction' => new TransactionResource($result['transaction']),
+            'transfer_details' => [
+                'amount' => $result['transfer_amount'],
+                'fee' => $result['fee_amount'],
+                'total_deducted' => $result['total_deducted'],
+                'reference' => $result['reference'],
+            ],
+            'balances' => [
+                'sender_new_balance' => $result['sender_new_balance'],
+                'recipient_new_balance' => $result['recipient_new_balance'],
+            ],
+            'status' => 'completed',
+        ], 'Transfer completed successfully');
     }
 }

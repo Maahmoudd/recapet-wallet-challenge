@@ -14,9 +14,10 @@ class TransactionRepository extends BaseRepository implements ITransactionReposi
     }
 
 
-    public function findByIdempotencyKey(string $key): ?Transaction
+    public function findByIdempotencyKey(string $idempotencyKey): ?Transaction
     {
-        return $this->findFirstBy('idempotency_key', $key);
+        return Transaction::where('idempotency_key', $idempotencyKey)
+            ->first();
     }
 
 
