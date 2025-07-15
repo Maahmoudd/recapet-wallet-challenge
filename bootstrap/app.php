@@ -3,6 +3,7 @@
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
@@ -21,6 +22,13 @@ return Application::configure(basePath: dirname(__DIR__))
             if (!$request->expectsJson()) return null;
 
             if ($e instanceof \Illuminate\Validation\ValidationException) return null;
+
+            if ($e instanceof ThrottleRequestsException) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Too many requests',
+                ], 429);
+            }
 
             if ($e instanceof \Illuminate\Auth\AuthenticationException) return null;
             if ($e instanceof \Illuminate\Auth\Access\AuthorizationException) return null;
