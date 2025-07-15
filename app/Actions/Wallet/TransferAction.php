@@ -6,6 +6,8 @@ use App\Models\User;
 use App\Repositories\Contract\ITransactionRepository;
 use App\Repositories\Contract\IUserRepository;
 use App\Repositories\Contract\IWalletRepository;
+use App\Repositories\Contract\ILedgerEntryRepository;
+use App\Repositories\Contract\IActivityLogRepository;
 use Illuminate\Support\Facades\DB;
 
 class TransferAction
@@ -13,7 +15,9 @@ class TransferAction
     public function __construct(
         private IUserRepository $userRepository,
         private IWalletRepository $walletRepository,
-        private ITransactionRepository $transactionRepository
+        private ITransactionRepository $transactionRepository,
+        private ILedgerEntryRepository $ledgerRepository,
+        private IActivityLogRepository $activityLogRepository
     ) {}
 
     public function execute(User $sender, array $data): array
@@ -75,13 +79,15 @@ class TransferAction
                     'recipient_balance_before' => $recipientWallet->balance,
                     'recipient_balance_after' => $recipientWallet->balance + $amount,
                     'fee_calculation' => [
-                        'base_fee' => $fee > 0 ? 2.50 : 0,
-                        'percentage_fee' => $fee > 0 ? ($amount * 0.10) : 0,
+                        'base_fee' => $fee > 0 ? config('wallet.calculation.base_fee') : 0,
+                        'percentage_fee' => $fee > 0 ? ($amount * config('wallet.calculation.percentage_fee')) : 0,
                         'total_fee' => $fee,
                         'fee_applied' => $fee > 0,
                     ]
                 ]
             ]);
+
+            $this->createLedgerEntries($transferTransaction, $senderWallet, $recipientWallet, $amount, $fee);
 
             $this->walletRepository->updateBalanceWithLock(
                 $senderWallet->id,
@@ -92,6 +98,8 @@ class TransferAction
                 $recipientWallet->id,
                 $recipientWallet->balance + $amount
             );
+
+            $this->logTransferActivity($transferTransaction, $sender, $recipient, $amount, $fee);
 
             return [
                 'transaction' => $transferTransaction->fresh(),
@@ -109,13 +117,127 @@ class TransferAction
 
     private function calculateFee(float $amount): float
     {
-        if ($amount <= config('wallet.calculation.min_transfer_amount')) {
+        if ($amount <= config('wallet.calculation.min_transfer_amount', 25.00)) {
             return 0;
         }
 
-        $baseFee = config('wallet.calculation.base_fee');
-        $percentageFee = $amount * config('wallet.calculation.percentage_fee');
+        $baseFee = config('wallet.calculation.base_fee', 2.50);
+        $percentageFee = $amount * config('wallet.calculation.percentage_fee', 0.10);
 
         return round($baseFee + $percentageFee, 2);
+    }
+
+    private function createLedgerEntries($transaction, $senderWallet, $recipientWallet, $amount, $fee): void
+    {
+        $this->ledgerRepository->create([
+            'transaction_id' => $transaction->id,
+            'wallet_id' => $senderWallet->id,
+            'type' => 'debit',
+            'amount' => $amount + $fee,
+            'balance_before' => $senderWallet->balance,
+            'balance_after' => $senderWallet->balance - ($amount + $fee),
+            'description' => "Transfer sent to {$transaction->metadata['recipient_email']}",
+            'reference' => $transaction->idempotency_key,
+            'metadata' => [
+                'transaction_type' => 'transfer_out',
+                'transfer_amount' => $amount,
+                'fee_amount' => $fee,
+                'recipient_wallet_id' => $recipientWallet->id,
+            ]
+        ]);
+
+        $this->ledgerRepository->create([
+            'transaction_id' => $transaction->id,
+            'wallet_id' => $recipientWallet->id,
+            'type' => 'credit',
+            'amount' => $amount,
+            'balance_before' => $recipientWallet->balance,
+            'balance_after' => $recipientWallet->balance + $amount,
+            'description' => "Transfer received from {$transaction->metadata['sender_email']}",
+            'reference' => $transaction->idempotency_key,
+            'metadata' => [
+                'transaction_type' => 'transfer_in',
+                'sender_wallet_id' => $senderWallet->id,
+            ]
+        ]);
+
+        if ($fee > 0) {
+            $this->ledgerRepository->create([
+                'transaction_id' => $transaction->id,
+                'wallet_id' => $senderWallet->id,
+                'type' => 'fee',
+                'amount' => $fee,
+                'balance_before' => $senderWallet->balance - $amount,
+                'balance_after' => $senderWallet->balance - ($amount + $fee),
+                'description' => "Transfer fee for transaction {$transaction->idempotency_key}",
+                'reference' => $transaction->idempotency_key . '_FEE',
+                'metadata' => [
+                    'transaction_type' => 'transfer_fee',
+                    'base_fee' => config('wallet.calculation.base_fee', 2.50),
+                    'percentage_fee' => $amount * config('wallet.calculation.percentage_fee', 0.10),
+                    'original_transaction_id' => $transaction->id,
+                ]
+            ]);
+        }
+    }
+
+    private function logTransferActivity($transaction, $sender, $recipient, $amount, $fee): void
+    {
+        // Log sender activity using the repository's log function
+        $this->activityLogRepository->log(
+            'wallet_transfer_sent',
+            $transaction,
+            [
+                'metadata' => [
+                    'transaction_id' => $transaction->id,
+                    'idempotency_key' => $transaction->idempotency_key,
+                    'recipient_id' => $recipient->id,
+                    'recipient_email' => $recipient->email,
+                    'amount' => $amount,
+                    'fee' => $fee,
+                    'total_deducted' => $amount + $fee,
+                ]
+            ],
+            request(),
+            $sender
+        );
+
+        // Log recipient activity using the repository's log function
+        $this->activityLogRepository->log(
+            'wallet_transfer_received',
+            $transaction,
+            [
+                'metadata' => [
+                    'transaction_id' => $transaction->id,
+                    'idempotency_key' => $transaction->idempotency_key,
+                    'sender_id' => $sender->id,
+                    'sender_email' => $sender->email,
+                    'amount' => $amount,
+                ]
+            ],
+            request(),
+            $recipient
+        );
+
+        // Log system activity for monitoring (no user context)
+        $this->activityLogRepository->log(
+            'transaction_completed',
+            $transaction,
+            [
+                'metadata' => [
+                    'transaction_id' => $transaction->id,
+                    'idempotency_key' => $transaction->idempotency_key,
+                    'sender_id' => $sender->id,
+                    'recipient_id' => $recipient->id,
+                    'transaction_type' => 'transfer',
+                    'amount' => $amount,
+                    'fee' => $fee,
+                    'transfer_type' => 'p2p',
+                    'processing_time_ms' => microtime(true) * 1000 - (request()->server('REQUEST_TIME_FLOAT') * 1000),
+                ]
+            ],
+            request(),
+            null // System log - no specific user
+        );
     }
 }
