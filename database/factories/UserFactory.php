@@ -41,4 +41,46 @@ class UserFactory extends Factory
             'email_verified_at' => null,
         ]);
     }
+
+    /**
+     * Create a user with a specific email for testing.
+     */
+    public function withEmail(string $email): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'email' => $email,
+        ]);
+    }
+
+    /**
+     * Create a user with a specific name for testing.
+     */
+    public function withName(string $name): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'name' => $name,
+        ]);
+    }
+
+    /**
+     * Create a user with a specific password for testing.
+     */
+    public function withPassword(string $password): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'password' => Hash::make($password),
+        ]);
+    }
+
+    /**
+     * Create a user for financial testing scenarios.
+     */
+    public function forFinancialTesting(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'name' => 'Test User',
+            'email' => 'test@example.com',
+            'password' => Hash::make('password123'),
+        ]);
+    }
 }

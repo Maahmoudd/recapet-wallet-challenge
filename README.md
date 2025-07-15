@@ -312,15 +312,6 @@ php artisan test --coverage
 - ✅ **Error Handling**: Invalid inputs, insufficient funds, duplicate transactions
 - ✅ **Security Testing**: Authentication, authorization, input validation
 
-### Performance Testing
-```bash
-# Load testing with concurrent transfers
-php artisan test --filter=ConcurrencyTest
-
-# Memory usage and response time validation
-php artisan test --filter=PerformanceTest
-```
-
 ## ⚡ Performance & Scalability
 
 ### Database Optimization
