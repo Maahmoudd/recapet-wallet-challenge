@@ -22,7 +22,6 @@ Route::middleware('auth:sanctum')->prefix('wallet')->group(function () {
 
     Route::get('/transactions', [WalletController::class, 'getTransactionHistory']);
 
-
 });
 
 // TODO: move to separate file and add admin guard
