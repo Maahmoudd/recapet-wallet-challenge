@@ -6,12 +6,14 @@ use App\Events\UserCreatedEvent;
 use App\Models\User;
 use App\Repositories\Contract\IActivityLogRepository;
 use App\Repositories\Contract\IUserRepository;
+use App\Repositories\Contract\IWalletRepository;
 use Illuminate\Support\Facades\DB;
 
 class RegisterUserAction
 {
     public function __construct(
         private readonly IUserRepository $userRepository,
+        private readonly IWalletRepository $walletRepository,
         private readonly IActivityLogRepository $activityLogRepository
     ) {}
 
@@ -24,7 +26,10 @@ class RegisterUserAction
         return DB::transaction(function () use ($data) {
             $user = $this->userRepository->create($data);
 
-            UserCreatedEvent::dispatch($user, request());
+            UserCreatedEvent::dispatch($user);
+            $wallet = $this->walletRepository->create([
+                'user_id' => $user->id,
+            ]);
 
             $token = $user->createToken('auth-token')->plainTextToken;
 
@@ -32,18 +37,18 @@ class RegisterUserAction
                 'metadata' => [
                     'name' => $user->name,
                     'email' => $user->email,
-                    'wallet_id' => $user->wallet->id
+                    'wallet_id' => $wallet->id
                 ]
             ], request(), $user);
 
-            $this->activityLogRepository->log('wallet_created', $user->wallet, [
+            $this->activityLogRepository->log('wallet_created', $wallet, [
                 'metadata' => ['initial_balance' => '0.00']
             ], request(), $user);
 
             return [
                 'user' => $user->load('wallet'),
                 'token' => $token,
-                'wallet' => $user->wallet,
+                'wallet' => $wallet,
             ];
         });
     }

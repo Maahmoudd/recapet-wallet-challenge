@@ -94,8 +94,9 @@ php artisan serve
 # API available at: http://localhost:8000/api
 ```
 
-### 5. Schedule Setup (Production)
+### 5. Schedule and Queue Setup
 ```bash
+php artisan queue:work
 php artisan schedule:run
 ```
 

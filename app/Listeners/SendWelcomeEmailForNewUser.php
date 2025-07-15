@@ -3,14 +3,15 @@
 namespace App\Listeners;
 
 use App\Events\UserCreatedEvent;
+use App\Notifications\NewUserWelcomeEmail;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Queue\InteractsWithQueue;
 
-class CreateWalletForNewUser
+class SendWelcomeEmailForNewUser implements ShouldQueue
 {
 
     public function handle(UserCreatedEvent $event): void
     {
-        $event->user->wallet()->create();
+        $event->user->notify(new NewUserWelcomeEmail());
     }
 }

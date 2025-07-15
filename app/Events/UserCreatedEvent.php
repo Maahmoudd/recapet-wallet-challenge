@@ -19,8 +19,7 @@ class UserCreatedEvent
      * Create a new event instance.
      */
     public function __construct(
-        public readonly \App\Models\User $user,
-        public readonly ?Request $request = null
+        public readonly \App\Models\User $user
     ) {}
 
     /**
