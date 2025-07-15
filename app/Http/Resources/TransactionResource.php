@@ -7,11 +7,6 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 class TransactionResource extends JsonResource
 {
-    /**
-     * Transform the resource into an array.
-     *
-     * @return array<string, mixed>
-     */
     public function toArray(Request $request): array
     {
         return [
@@ -21,7 +16,8 @@ class TransactionResource extends JsonResource
             'amount' => $this->amount,
             'fee_amount' => $this->fee_amount,
             'total_amount' => $this->total_amount,
-            'status' => $this->status,
+            'status' => $this->status, // Requirement #4: Record status updates
+            'status_description' => $this->getStatusDescription(),
             'description' => $this->getTransactionDescription(),
             'metadata' => $this->metadata,
             'created_at' => $this->created_at?->toISOString(),
@@ -42,6 +38,16 @@ class TransactionResource extends JsonResource
                 ? "Transfer from {$this->fromWallet->user->email} to {$this->toWallet->user->email}"
                 : 'Transfer between wallets',
             default => ucfirst($this->type),
+        };
+    }
+
+    private function getStatusDescription(): string
+    {
+        return match ($this->status) {
+            'pending' => 'Transaction is being processed',
+            'completed' => 'Transaction completed successfully',
+            'failed' => 'Transaction failed',
+            default => ucfirst($this->status),
         };
     }
 }
